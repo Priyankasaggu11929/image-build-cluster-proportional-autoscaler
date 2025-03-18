@@ -1,36 +1,42 @@
-ARG GO_IMAGE=rancher/hardened-build-base:v1.24.1b1
+#!UseOBSRepositories
 
-# Image that provides cross compilation tooling.
-FROM --platform=$BUILDPLATFORM rancher/mirrored-tonistiigi-xx:1.5.0 as xx
+#!BuildTag: rancher/image-build-cluster-proportional-autoscaler:v1.9.0
+#!BuildTag: rancher/image-build-cluster-proportional-autoscaler:latest
+#!BuildName: image-build-cluster-proportional-autoscaler
+
+ARG GO_IMAGE=rancher/image-build-base:latest
+
 
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} as base-builder
-COPY --from=xx / /
-# setup required packages
-RUN set -x && \
-    apk --no-cache add \
-    file \
-    gcc \
-    git \
-    make \
-    clang lld
+RUN set -euo pipefail; \
+    zypper -n install --no-recommends \
+    # file \
+    # gcc \
+    # git \
+    # clang \
+    # lld \
+    # glibc \
+    # glibc-devel-static \    
+    musl-gcc \
+    musl-libc-static \
+    make; \
+    zypper -n clean; \
+    rm -rf {/target,}/var/log/{alternatives.log,lastlog,tallylog,zypper.log,zypp/history,YaST2}
 
 # setup the autoscaler build
 FROM base-builder as autoscaler-builder
 ARG SRC=github.com/kubernetes-sigs/cluster-proportional-autoscaler
 ARG PKG=github.com/kubernetes-sigs/cluster-proportional-autoscaler
-RUN git clone --depth=1 https://${SRC}.git $GOPATH/src/${PKG}
 ARG TAG=v1.9.0
+ENV C_INCLUDE_PATH="/usr/x86_64-linux-musl/include/:/usr/include/"
+ENV CC="musl-gcc"
+
+COPY cluster-proportional-autoscaler ${GOPATH}/src/${PKG}
+
 WORKDIR $GOPATH/src/${PKG}
-RUN git fetch --all --tags --prune
-RUN git checkout tags/${TAG} -b ${TAG}
 
-ARG TARGETPLATFORM
-RUN set -x && \
-    xx-apk add musl-dev gcc  lld 
-
-RUN xx-go --wrap &&\
-    GOARCH=${ARCH} GO_LDFLAGS="-linkmode=external -X ${PKG}/pkg/version.VERSION=${TAG}" \
-    go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o . ./...
+RUN GOARCH=${ARCH} GO_LDFLAGS="-linkmode=external -X ${PKG}/pkg/version.VERSION=${TAG}" \
+    go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -mod=vendor -buildvcs=false -o . ./...
 RUN go-assert-static.sh cluster-proportional-autoscaler
 RUN if [ `xx-info arch` = "amd64" ]; then \
     	go-assert-boring.sh cluster-proportional-autoscaler; \
