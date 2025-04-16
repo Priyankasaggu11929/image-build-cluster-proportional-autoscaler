@@ -10,8 +10,14 @@
 
 ARG GO_IMAGE=rancher/image-build-base:latest
 
+# INFO(psaggu): keeping the following commented instructions
+# to do a final review pass once after RKE2 build is e2e tested.
+
+# FROM  ${GO_IMAGE} as base-builder
+# FROM base-builder as autoscaler-builder
+
 # setup the autoscaler build
-FROM base-builder as autoscaler-builder
+FROM ${GO_IMAGE} as autoscaler-builder
 ARG SRC=github.com/kubernetes-sigs/cluster-proportional-autoscaler
 ARG PKG=github.com/kubernetes-sigs/cluster-proportional-autoscaler
 ARG TAG=v1.9.0
