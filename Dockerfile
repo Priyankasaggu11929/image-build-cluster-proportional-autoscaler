@@ -25,10 +25,12 @@ COPY cluster-proportional-autoscaler ${GOPATH}/src/${PKG}
 
 WORKDIR $GOPATH/src/${PKG}
 
-RUN GOARCH=${ARCH} GO_LDFLAGS="-linkmode=external -X ${PKG}/pkg/version.VERSION=${TAG}" \
+RUN GO_LDFLAGS="-linkmode=external -X ${PKG}/pkg/version.VERSION=${TAG}" \
     go-build-static.sh -gcflags=-trimpath=${GOPATH}/src -o . ./...
 RUN go-assert-static.sh cluster-proportional-autoscaler
-RUN if [ `xx-info arch` = "amd64" ]; then \
+
+RUN if [ "$(uname -m)" == "x86_64" ]; then export TARGETARCH="amd64"; elif [ "$(uname -m)" == "aarch64" ]; then export TARGETARCH="arm64"; fi
+RUN if [ "${TARGETARCH}" = "amd64" ]; then \
     	go-assert-boring.sh cluster-proportional-autoscaler; \
     fi
 RUN install cluster-proportional-autoscaler /usr/local/bin
